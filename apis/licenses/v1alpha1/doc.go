@@ -21,5 +21,5 @@ limitations under the License.
 // +k8s:openapi-gen=true
 // +k8s:defaulter-gen=TypeMeta
 
-// +groupName=licenses.appscode.com
+// +groupName=127.0.0.1
 package v1alpha1

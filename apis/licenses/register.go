@@ -17,4 +17,4 @@ limitations under the License.
 package licenses
 
 // GroupName is the group name use in this package
-const GroupName = "licenses.appscode.com"
+const GroupName = "127.0.0.1"

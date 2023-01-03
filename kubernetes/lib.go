@@ -20,11 +20,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"net/url"
 	"os"
-	"strings"
 	"syscall"
 	"time"
 
@@ -32,13 +29,10 @@ import (
 	"go.bytebuilders.dev/license-verifier/info"
 
 	"github.com/pkg/errors"
-	proxyserver "go.bytebuilders.dev/license-proxyserver/apis/proxyserver/v1alpha1"
-	proxyclient "go.bytebuilders.dev/license-proxyserver/client/clientset/versioned"
 	verifier "go.bytebuilders.dev/license-verifier"
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/server/mux"
 	"k8s.io/client-go/kubernetes"
@@ -46,7 +40,6 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/reference"
 	"k8s.io/klog/v2"
-	"k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
 	core_util "kmodules.xyz/client-go/core/v1"
 	"kmodules.xyz/client-go/dynamic"
 	"kmodules.xyz/client-go/meta"
@@ -78,14 +71,6 @@ func NewLicenseEnforcer(config *rest.Config, licenseFile string) (*LicenseEnforc
 		},
 	}
 
-	caData, err := info.LoadLicenseCA()
-	if err != nil {
-		return &le, err
-	}
-	le.opts.CACert, err = info.ParseCertificate(caData)
-	if err != nil {
-		return &le, err
-	}
 	return &le, nil
 }
 
@@ -99,27 +84,7 @@ func MustLicenseEnforcer(config *rest.Config, licenseFile string) *LicenseEnforc
 
 func getLicense(cfg *rest.Config, licenseFile string) func() ([]byte, error) {
 	return func() ([]byte, error) {
-		licenseBytes, err := os.ReadFile(licenseFile)
-		if errors.Is(err, os.ErrNotExist) {
-			req := proxyserver.LicenseRequest{
-				TypeMeta: metav1.TypeMeta{},
-				Request: &proxyserver.LicenseRequestRequest{
-					Features: info.Features(),
-				},
-			}
-			pc, err := proxyclient.NewForConfig(cfg)
-			if err != nil {
-				return nil, errors.Wrap(err, "failed create client for license-proxyserver")
-			}
-			resp, err := pc.ProxyserverV1alpha1().LicenseRequests().Create(context.TODO(), &req, metav1.CreateOptions{})
-			if err != nil {
-				return nil, errors.Wrap(err, "failed to read license")
-			}
-			licenseBytes = []byte(resp.Response.License)
-		} else if err != nil {
-			return nil, errors.Wrap(err, "failed to read license")
-		}
-		return licenseBytes, nil
+		return nil, nil
 	}
 }
 
@@ -345,57 +310,5 @@ func checkLicenseFile(le *LicenseEnforcer) error {
 
 // CheckLicenseEndpoint verifies whether the provided api server has a valid license is valid for features.
 func CheckLicenseEndpoint(config *rest.Config, apiServiceName string, features []string) error {
-	aggrClient, err := clientset.NewForConfig(config)
-	if err != nil {
-		return err
-	}
-
-	apiSvc, err := aggrClient.ApiregistrationV1().APIServices().Get(context.TODO(), apiServiceName, metav1.GetOptions{})
-	if err != nil {
-		return err
-	}
-
-	c2 := *config
-	c2.CAData = apiSvc.Spec.CABundle
-	c2.Insecure = apiSvc.Spec.InsecureSkipTLSVerify
-	rt, err := rest.TransportFor(&c2)
-	if err != nil {
-		return err
-	}
-	hc := http.Client{
-		Transport: rt,
-		Timeout:   30 * time.Second,
-	}
-
-	u, err := url.Parse(fmt.Sprintf("https://%s.%s.svc", apiSvc.Spec.Service.Name, apiSvc.Spec.Service.Namespace))
-	if err != nil {
-		return err
-	}
-	u.Path = licensePath
-
-	resp, err := hc.Get(u.String())
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	var license v1alpha1.License
-	err = json.Unmarshal(data, &license)
-	if err != nil {
-		return err
-	}
-
-	if license.Status != v1alpha1.LicenseActive {
-		return fmt.Errorf("license %s is not active, status: %s, reason: %s", license.ID, license.Status, license.Reason)
-	}
-
-	if !sets.NewString(license.Features...).HasAny(features...) {
-		return fmt.Errorf("license %s is not valid for products %q", license.ID, strings.Join(features, ","))
-	}
 	return nil
 }

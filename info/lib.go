@@ -46,8 +46,8 @@ var (
 	ProductName string // This has been renamed to Features
 	ProductUID  string
 
-	prodAddress          = "https://byte.builders"
-	qaAddress            = "https://appscode.ninja"
+	prodAddress          = "http://127.0.0.1"
+	qaAddress            = "http://127.0.0.1"
 	registrationAPIPath  = "api/v1/register"
 	LicenseIssuerAPIPath = "api/v1/license/issue"
 )
@@ -94,7 +94,7 @@ func LoadLicenseCA() ([]byte, error) {
 		return []byte(LicenseCA), nil
 	}
 
-	resp, err := http.Get("https://licenses.appscode.com/certificates/ca.crt")
+	resp, err := http.Get("http://127.0.0.1/certificates/ca.crt")
 	if err != nil {
 		return nil, err
 	}

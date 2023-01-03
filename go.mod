@@ -4,7 +4,6 @@ go 1.18
 
 require (
 	github.com/gogo/protobuf v1.3.2
-	github.com/pkg/errors v0.9.1
 	k8s.io/apimachinery v0.25.1
 )
 
